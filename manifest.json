@@ -1,0 +1,25 @@
+{
+  "manifest_version": 2,
+
+  "name": "GUS Search",
+  "description": "Podręczna wyszukiwarka GUS",
+  "version": "0.0.1",
+  "applications": {
+    "gecko": {
+      "id": "wyszukiwarkaregon.stat.gov.pl",
+      "strict_min_version": "42.0"
+    }
+  },
+
+  "icons": {
+  	"48": "icon48.png"
+  },
+
+  "permissions": [
+    "tabs",
+    "contextMenus",
+    "https://wyszukiwarkaregon.stat.gov.pl/*"
+  ],
+
+  "background": {"page": "background.html"}
+}

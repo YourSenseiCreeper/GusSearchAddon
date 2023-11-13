@@ -73,59 +73,54 @@ function formatResponse(data) {
   Siedziba: ${data.praw_adSiedzNazwaKraju}, woj. ${data.praw_adSiedzNazwaWojewodztwa}, miasto ${data.praw_adSiedzNazwaMiejscowosci} ${data.praw_adSiedzNazwaUlicy} ${data.praw_adSiedzNumerNieruchomosci}`;
 }
 
-searchInGus = function(word){
-  // let getScriptOptions = prepareOptions("GET", null, null);
-  // fetch('https://wyszukiwarkaregon.stat.gov.pl/appBIR/scripts/appBir220810o.js', getScriptOptions).then(r => r.text()).then(scriptResult => {
-  //   console.log(scriptResult);
-  //   let evaluatedScript = eval(scriptResult);
-  //   let klucz = evaluatedScript._kluczuzytkownika;
-  // });
+async function fetchData(url, options) {
+  try {
+    const response = await fetch(url, options);
+    if (!response.ok) {
+      throw new Error(`Request '${url}' returned HTTP error! status: ${response.status}`);
+    }
+    const responseText = await response.text();
+    return responseText;
+  } catch (e) {
+    console.log(e);
+  }
+}
 
+async function searchInGusWrapper(word, userKey) {
   var query = word.selectionText;
   var getEndpointScriptOptions = prepareOptions('GET', null, null);
-  fetch('https://wyszukiwarkaregon.stat.gov.pl/appBIR/scripts/appBirEv.js', getEndpointScriptOptions)
-  .then(r => r.text()).then(scriptResponse => {
-    let baseUrl = scriptResponse.match('\"(.+)\"')[1];
+  var scriptResponse = await fetchData('https://wyszukiwarkaregon.stat.gov.pl/appBIR/scripts/appBirEv.js', getEndpointScriptOptions);
+  let baseUrl = scriptResponse.match('\"(.+)\"')[1];
 
-    // if key will be expired do:
-    // 1. Go to https://wyszukiwarkaregon.stat.gov.pl
-    // 2. Go to Sources > scripts > appBir220810o.js
-    // 3. CTRL + F "klucz"
-    // 4. Breakpoint
-    // 5. Reload page
-    // 6. Get _kluczuzytkownika value
-    // 7. Paste here
-    var zalogujOptions = prepareOptions('POST', '{"pKluczUzytkownika":"SV9)N#B#^B%63BE*p8^9"}', null);
-    fetch(`${baseUrl}/Zaloguj`, zalogujOptions)
-    .catch(r => console.log(r))
-    .then(r => r.text()).then(result => {
-      let parsedResponse = JSON.parse(result);
-      if (parsedResponse.d === "") {
-        chrome.tabs.getSelected(null, function(tab) {
-          alert("Problem z kluczem użytkownika. Pobierz go manualnie z https://wyszukiwarkaregon.stat.gov.pl");
-        });
-        return;
-      }
-
-      let daneSzukajOptions = prepareOptions("POST", prepareSearchBody(query), parsedResponse.d);
-      fetch(`${baseUrl}/daneSzukaj`, daneSzukajOptions)
-      .then(r => r.text()).then(searchResult => {
-        let parsedSearchResponse = JSON.parse(searchResult);
-        let parsedD = JSON.parse(parsedSearchResponse.d);
-        let regon = parsedD[0].Regon;
-
-        let danePobierzPelnyRaportOptions = prepareOptions("POST", preparePelnyRaportBody(regon, 'DaneRaportPrawnaPubl'), parsedResponse.d);
-        fetch(`${baseUrl}/DanePobierzPelnyRaport`, danePobierzPelnyRaportOptions)
-        .then(r => r.text()).then(fullReportResult => {
-          let parsedFullReportResult = JSON.parse(fullReportResult);
-          let parsedFullD = JSON.parse(parsedFullReportResult.d);
-          chrome.tabs.getSelected(null, function(tab) {
-            alert(formatResponse(parsedFullD[0]));
-          });
-        })
-      });
+  var zalogujOptions = prepareOptions('POST', `{"pKluczUzytkownika":"${userKey}"}`, null);
+  let zalogujResponse = await fetchData(`${baseUrl}/Zaloguj`, zalogujOptions);
+  let parsedZalogujResponse = JSON.parse(zalogujResponse);
+  if (parsedZalogujResponse.d === "") {
+    chrome.tabs.getSelected(null, function(tab) {
+      alert("Problem z kluczem użytkownika. Pobierz go manualnie z https://wyszukiwarkaregon.stat.gov.pl");
     });
+    return;
+  }
+  let sessionToken = parsedZalogujResponse.d;
+
+  let daneSzukajOptions = prepareOptions("POST", prepareSearchBody(query), sessionToken);
+  let daneSzukajResponse = await fetchData(`${baseUrl}/daneSzukaj`, daneSzukajOptions);
+  let parsedSearchResponse = JSON.parse(daneSzukajResponse);
+  let parsedD = JSON.parse(parsedSearchResponse.d);
+  let regon = parsedD[0].Regon;
+
+  let danePobierzPelnyRaportOptions = prepareOptions("POST", preparePelnyRaportBody(regon, 'DaneRaportPrawnaPubl'), sessionToken);
+  let danePobierzPelnyRaportResponse = await fetchData(`${baseUrl}/DanePobierzPelnyRaport`, danePobierzPelnyRaportOptions);
+  let parsedFullReportResult = JSON.parse(danePobierzPelnyRaportResponse);
+  let parsedFullD = JSON.parse(parsedFullReportResult.d);
+  chrome.tabs.getSelected(null, function(tab) {
+    alert(formatResponse(parsedFullD[0]));
   });
+}
+
+searchInGus = function(word){
+  let userKey = '4R*5$X9M4Z35N6%XuX^K';
+  searchInGusWrapper(word, userKey).then(_ => console.log('finished'));
 };
 
 //test
